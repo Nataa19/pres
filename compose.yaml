@@ -1,0 +1,71 @@
+services:
+  nginx-proxy:
+    image: nginxproxy/nginx-proxy
+    container_name: nginx-proxy
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./vhost:/etc/nginx/vhost.d
+      - ./conf:/etc/nginx/conf.d
+      - ./html:/usr/share/nginx/html
+      - ./certs:/etc/nginx/certs:ro
+      - /var/run/docker.sock:/tmp/docker.sock:ro
+      - ./acme:/etc/acme.sh  
+
+  acme-companion:
+    image: nginxproxy/acme-companion
+    container_name: nginx-proxy-acme
+    environment:
+      - NGINX_PROXY_CONTAINER=nginx-proxy
+      - CREATE_DEFAULT_CERTIFICATE=true
+      - debug=true
+      - DEFAULT_EMAIL=canteronatanael8@gmail.com
+    volumes_from:
+      - nginx-proxy:rw
+    volumes:
+      - ./certs:/etc/nginx/certs:rw
+      - ./acme:/etc/acme.sh
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+
+    
+  api:
+    build:
+      context: .
+    env_file:
+      - ./contenido/.env
+    expose:
+      - "80"
+    #volumes:
+    #  - ./contenido:/app
+    command: ["rails", "server", "-b", "0.0.0.0","-p", "80"]
+    environment:
+      - VIRTUAL_PORT=80
+      - VIRTUAL_HOST=nataec.ddns.net
+      - LETSENCRYPT_HOST=nataec.ddns.net
+      - LETSENCRYPT_EMAIL=canteronatanael8@gmail.com
+    depends_on:
+      - nginx-proxy
+      - acme-companion
+      - postgres
+
+  postgres:
+    image: postgres:latest
+    restart: always
+    shm_size: 128mb
+    expose:
+      - "5432"
+    environment:
+      POSTGRES_DB: natadb
+      POSTGRES_USER: nata
+      POSTGRES_PASSWORD: nata
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+volumes:
+  vhost:
+  conf:
+  html:
+  certs:
+  acme:
+  postgres_data:
